@@ -80,3 +80,9 @@ You can see that the specific logic for generating the appropriate arguments to 
 ## Interactive demo (FUTURE FEATURE)
 
 An interactive player is [will be] provided in `web_demo/` as a simple web app. All game logic and rendering is client-side JavaScript; board solving is done via WebAssembly and a web worker (to avoid freezing the UI thread).
+
+## Future work
+
+In the future, I'd like to find a way to optimise out as many of the `Rc`s (and `RefCell`/`Shared`s) as possible, ideally ending with zero-clone data structures. This would improve performance, possibly significantly. I'm not sure if this is possible, but perhaps someone with more experience optimising allocations could help with this.
+
+Additionally, I would like to reduce or remove the reliance on the nightly compiler. This is currently required for the features `trait_alias`, `generators`, and `generator_trait`. `trait_alias` is used to define a set of bounds required by all the solver's functions, and `generators` and `generator_trait` are used to create Python-style generator iterators. Removing the generators without introducing boxed iterators would probably require a significant amount of boilerplate, so I'm not sure if it's worth it. `trait_alias` may be possible to remove by using supertraits and blanket impls, but I haven't tried this yet.
