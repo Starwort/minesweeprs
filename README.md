@@ -75,7 +75,7 @@ Note that `total_cells` was passed as 85 instead of 100. This is because 15 cell
 
 In general, `total_cells` must equal the number of all covered cells in the grid, plus the number of uncovered cells that happen to be included in a rule. `total_mines` must equal the total number of mines in the grid, minus any mines that have been identified and *not* mentioned in any `Rule` (or the solver will try to place them in uncovered cells!).
 
-You can see that the specific logic for generating the appropriate arguments to `solve()` is quite nuanced (assuming you don't take the naive route). [FUTURE FEATURES, NOT IMPLEMENTED YET] Luckily, utility code is provided that can do the processing for you. See `minesweepr::util::generate_rules()`. You can also use `minesweepr::util::read_board()` (without the explicit tagging `A`, `B`, `C` that was done above for illustrative purposes).
+You can see that the specific logic for generating the appropriate arguments to `solve()` is quite nuanced (assuming you don't take the naive route). Luckily, utility code is provided that can do the processing for you. See `minesweepr::util::Board::generate_rules()`. You can also use `minesweepr::util::read_board()` (without the explicit tagging `A`, `B`, `C` that was done above for illustrative purposes).
 
 ## Interactive demo (FUTURE FEATURE)
 

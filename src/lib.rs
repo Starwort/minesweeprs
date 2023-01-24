@@ -8,8 +8,7 @@ use std::iter::{empty, once};
 use std::rc::Rc;
 
 use either::Either;
-use itertools::Itertools;
-use util::{
+use internal_util::{
     comb,
     fact_div,
     graph_traverse,
@@ -22,7 +21,9 @@ use util::{
     GeneratorAdaptor,
     Shared,
 };
-mod util;
+use itertools::Itertools;
+mod internal_util;
+pub mod util;
 
 pub trait Cell = Hash + Eq + Clone + Debug;
 
@@ -306,10 +307,6 @@ impl<T: Cell> Reduceable<T> {
 
     pub fn reduce(&self) -> Rc<InternalRule<T>> {
         self.super_rule.subtract(&self.sub_rule)
-    }
-
-    pub fn contains(&self, rule: &InternalRule<T>) -> bool {
-        &*self.super_rule == rule || &*self.sub_rule == rule
     }
 
     pub fn contained_within(&self, rules: &HashSet<Rc<InternalRule<T>>>) -> bool {
@@ -1522,11 +1519,9 @@ fn combine_fronts<T: Cell>(
                 .cartesian_product(other.totals.iter())
                 .filter_map(cross_entry);
 
-            let new_totals = map_reduce(
-                cross_entries,
-                |kv| once(kv),
-                |vals| AllFrontsPerMineTotals::sum(&vals),
-            );
+            let new_totals = map_reduce(cross_entries, once, |vals| {
+                AllFrontsPerMineTotals::sum(&vals)
+            });
             Self {
                 totals: new_totals,
             }
@@ -1637,15 +1632,6 @@ impl UnchartedCell {
     pub fn len(&self) -> usize {
         self.size
     }
-
-    pub fn iter(&self) -> impl Iterator<Item = ()> {
-        let size = self.size;
-        GeneratorAdaptor::new(move || {
-            if size > 0 {
-                yield;
-            }
-        })
-    }
 }
 
 struct FixedProbTally {
@@ -1677,7 +1663,10 @@ fn expand_cells<T: Cell>(
                     }
                 },
                 Either::Right(uncharted) => {
-                    yield (Rc::clone(&other_tag), p / (uncharted.len() as f64));
+                    // Skip the "other" cell if there aren't any
+                    if uncharted.len() != 0 {
+                        yield (Rc::clone(&other_tag), p / (uncharted.len() as f64));
+                    }
                 },
             }
         }

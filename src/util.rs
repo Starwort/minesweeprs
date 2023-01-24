@@ -1,287 +1,243 @@
-use std::cell::{Ref, RefCell, RefMut};
-use std::cmp::{max, min};
-use std::collections::hash_map::DefaultHasher;
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
-use std::ops::{Deref, Generator, GeneratorState, Sub};
-use std::pin::Pin;
-use std::rc::Rc;
 
-use either::Either;
+use crate::{BoardInfo, Rule};
 
-use crate::BoardInfo;
-
-pub trait CustomInto<T> {
-    fn into(self) -> T;
+/// A cell on the board
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoardCell {
+    /// A cell that has been revealed and is empty
+    Empty(usize),
+    /// A cell that is known to be a mine
+    Mine,
+    /// A cell that is completely unknown
+    Unknown,
 }
 
-impl CustomInto<Either<BoardInfo, f64>> for BoardInfo {
-    fn into(self) -> Either<BoardInfo, f64> {
-        Either::Left(self)
+/// Simple representation of a game board (no game logic!)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Board {
+    /// The cells of the board
+    cells: HashMap<(usize, usize), BoardCell>,
+    /// The width of the board
+    width: usize,
+    /// The height of the board
+    height: usize,
+}
+impl Board {
+    /// Create a game board from an ASCII-encoded description, where:
+    /// - `*` is a mine
+    /// - `x` is an unknown cell
+    /// - `0`-`8` is a revealed cell with that many adjacent mines
+    /// - `.` can be used in place of `0`
+    /// - Trailing or leading whitespace is ignored
+    ///
+    /// # Errors
+    ///
+    /// If the board is not rectangular, or has a width or height of 0, an error
+    /// is returned.
+    pub fn new(encoded: &str) -> Result<Self, String> {
+        let lines = encoded.trim().lines().map(|l| l.trim()).collect::<Vec<_>>();
+        let height = lines.len();
+        if height == 0 {
+            return Err("Board must have at least one row".to_string());
+        }
+        let width = lines[0].len();
+        if width == 0 {
+            return Err("Board must have at least one column".to_string());
+        }
+        if let Some(line) = lines.iter().find(|l| l.len() != width) {
+            return Err(format!(
+                concat!(
+                    "Board must be rectangular (found line with length {},",
+                    " expected length {})",
+                ),
+                line.len(),
+                width,
+            ));
+        }
+        let mut cells = HashMap::new();
+        for (row, line) in lines.into_iter().enumerate() {
+            for (col, c) in line.chars().enumerate() {
+                cells.insert(
+                    (row, col),
+                    match c {
+                        '*' => BoardCell::Mine,
+                        'x' => BoardCell::Unknown,
+                        '.' => BoardCell::Empty(0),
+                        n @ '1'..='8' => {
+                            BoardCell::Empty(
+                                n.to_digit(10).expect(
+                                    "n has been validated to be a decimal digit",
+                                ) as usize,
+                            )
+                        },
+                        _ => {
+                            return Err(format!(
+                                "Invalid character '{}' at ({}, {})",
+                                c, row, col
+                            ));
+                        },
+                    },
+                );
+            }
+        }
+        Ok(Self {
+            cells,
+            width,
+            height,
+        })
     }
-}
-impl CustomInto<Either<BoardInfo, f64>> for f64 {
-    fn into(self) -> Either<BoardInfo, f64> {
-        Either::Right(self)
-    }
-}
-impl<A, B> CustomInto<Either<A, B>> for Either<A, B> {
-    fn into(self) -> Either<A, B> {
-        self
-    }
-}
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct Shared<T>(Rc<RefCell<T>>);
-impl<T> Shared<T> {
-    pub fn new(value: T) -> Self {
-        Self(Rc::new(RefCell::new(value)))
-    }
-
-    pub fn borrow(&self) -> Ref<'_, T> {
-        self.0.deref().borrow()
+    /// Get a list of cells adjacent to the given cell
+    pub fn adjacent(
+        &self,
+        (row, col): (usize, usize),
+    ) -> Vec<((usize, usize), BoardCell)> {
+        let mut adjacent = Vec::new();
+        for r in row.saturating_sub(1)..=min(row + 1, self.height - 1) {
+            for c in col.saturating_sub(1)..=min(col + 1, self.width - 1) {
+                if r == row && c == col {
+                    continue;
+                }
+                adjacent.push(((r, c), self.cells[&(r, c)]));
+            }
+        }
+        adjacent
     }
 
-    pub fn borrow_mut(&self) -> RefMut<T> {
-        (*self.0).borrow_mut()
+    pub fn cell_name(&self, (row, col): (usize, usize)) -> String {
+        format!(
+            "{0:01$}-{2:03$}",
+            row,
+            self.height.to_string().len(),
+            col,
+            self.width.to_string().len()
+        )
     }
-}
-impl<T> Debug for Shared<T>
-where
-    T: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Shared(")?;
-        self.0.deref().borrow().fmt(f)?;
-        write!(f, ")")
+
+    pub fn total_cells(&self) -> usize {
+        self.width * self.height
     }
-}
-impl<T, U> From<U> for Shared<T>
-where
-    Rc<RefCell<T>>: From<U>,
-{
-    fn from(value: U) -> Self {
-        Self(value.into())
-    }
-}
-// struct CustomRef<T> {
-//     inner: ManuallyDrop<Ref<'static, ()>>,
-//     _marker: PhantomData<T>,
-// }
-// impl<T> From<Ref<'_, T>> for CustomRef<T> {
-//     fn from(inner: Ref<'_, T>) -> Self {
-//         Self {
-//             // SAFETY: CustomRef can only be obtained through Shared's Deref,
-//             // which guarantees that the backing data will be alive at least
-//             // as long as this CustomRef, and CustomRef cannot be cloned,
-//             // so the reference can't escape the lifetime.
-//             inner: ManuallyDrop::new(unsafe { transmute(inner) }),
-//             _marker: PhantomData,
-//         }
-//     }
-// }
-// impl<T> Deref for CustomRef<T> {
-//     type Target = T;
 
-//     fn deref(&self) -> &Self::Target {
-//         // SAFETY: This is transmuting back the original type, which was
-// erased         // in From. ManuallyDrop is guaranteed to have the same layout
-// as the         // type it wraps, so this is safe.
-//         unsafe { transmute(transmute::<&_, &Ref<'_, T>>(&self.inner).deref())
-// }     }
-// }
-// impl<T> Drop for CustomRef<T> {
-//     fn drop(&mut self) {
-//         // SAFETY: This is a destructor; the data will never be used again
-//         let r#ref = unsafe { ManuallyDrop::take(&mut self.inner) };
-//         drop(unsafe { transmute::<_, Ref<'_, T>>(self.inner) });
-//     }
-// }
-pub fn fact_div(a: usize, b: usize) -> f64 {
-    if a >= b {
-        ((b + 1)..=a).map(|i| i as f64).product::<f64>()
-    } else {
-        1.0 / fact_div(b, a)
-    }
-}
+    /// Reference algorithm for generating input rules and baord info from a
+    /// game state.
+    ///
+    /// `everything_mode`: If `false`, only include 'interesting' rules i.e.
+    /// omit the parts of the board that have already been solved. If `true`,
+    /// include rules to completely describe the state of the board (but still
+    /// don't include *every* possible rule, as this would include a huge number
+    /// of degenerate / redundant rules). In general, invalid boards will only
+    /// be detected by everything mode.
+    ///
+    /// In 'interesting mode':
+    /// - Create a rule for each 'number' cell that borders an uncovered cell
+    /// - Create a rule encompassing cells with known mines, including *only*
+    ///   those cells which are referenced by the rules from the previous step
+    /// In everything mode:
+    /// - Create a rule for each 'number' cell
+    /// - Create a rule encompassing all known mines
+    /// - Create a rule encompassing all unknown cells
+    /// - Create a rule for all cells adjacent to blank/empty cells, and not
+    ///   included in the previous rule. Thus, this rule will only be present
+    ///   for invalid boards or boards whose empty areas have not been fully
+    ///   expanded.
+    pub fn generate_rules(
+        &self,
+        total_mines: usize,
+        everything_mode: bool,
+    ) -> (Vec<Rule<(usize, usize)>>, BoardInfo) {
+        /// Rule-building helper; don't create degenerate rules
+        ///
+        /// Allows mines > cells, such as in the event of an invalid board
+        fn rule(
+            mines: usize,
+            cells: impl IntoIterator<Item = (usize, usize)>,
+        ) -> Option<Rule<(usize, usize)>> {
+            let mut iter = cells.into_iter();
+            let next = iter.next();
+            if mines != 0 || next.is_some() {
+                Some(Rule::new(mines, iter.chain(next)))
+            } else {
+                None
+            }
+        }
 
-pub fn comb(n: usize, k: usize) -> usize {
-    ((max(k, n - k) + 1)..=n).product::<usize>()
-        / (1..=min(k, n - k)).product::<usize>()
-}
+        let mut clear_cells = HashSet::new();
+        let mut zero_cells = HashSet::new();
+        let mut relevant_mines = HashSet::new();
+        let mut num_known_mines = 0;
 
-pub fn peek<T>(mut iter: impl Iterator<Item = T>) -> T {
-    iter.next().expect("No items in iterator")
-}
-
-pub fn pop<T: Eq + Hash + Clone>(set: &mut HashSet<T>) -> Option<T> {
-    if let Some(item) = set.iter().next().cloned() {
-        set.remove(&item);
-        Some(item)
-    } else {
-        None
-    }
-}
-
-pub fn graph_traverse<T: Hash + Eq + Clone>(
-    graph: &HashMap<T, HashSet<T>>,
-    node: &T,
-) -> HashSet<T> {
-    let mut visited = HashSet::new();
-    let mut to_visit = HashSet::from([node]);
-    while let Some(node) = pop(&mut to_visit) {
-        if visited.insert(node.clone()) {
-            for neighbour in graph[node].iter() {
-                if !visited.contains(neighbour) && !to_visit.contains(&neighbour) {
-                    to_visit.insert(neighbour);
+        let mut rules = Vec::new();
+        for (&cell_id, &cell) in self.cells.iter() {
+            if cell == BoardCell::Mine {
+                num_known_mines += 1;
+                if everything_mode {
+                    relevant_mines.insert(cell_id);
+                }
+            } else if let BoardCell::Empty(adj) = cell {
+                clear_cells.insert(cell_id);
+                let neighbours = self.adjacent(cell_id);
+                if adj > 0 {
+                    if everything_mode
+                        || neighbours.iter().any(|&(_, c)| c == BoardCell::Mine)
+                    {
+                        rules.extend(rule(
+                            adj,
+                            neighbours
+                                .iter()
+                                .copied()
+                                .filter(|&(_, nc)| {
+                                    nc == BoardCell::Mine || nc == BoardCell::Unknown
+                                })
+                                .map(|(id, _)| id),
+                        ));
+                        relevant_mines.extend(
+                            neighbours
+                                .into_iter()
+                                .filter(|&(_, c)| c == BoardCell::Mine)
+                                .map(|(id, _)| id),
+                        );
+                    }
+                } else {
+                    zero_cells.extend(neighbours.into_iter().map(|(id, _)| id));
                 }
             }
         }
-    }
-    visited
-}
 
-pub fn map_reduce<T, K: Hash + Eq, U, V, I: Iterator<Item = (K, U)>>(
-    data: impl Iterator<Item = T>,
-    emit: impl Fn(T) -> I,
-    reduce: impl Fn(Vec<U>) -> V,
-) -> HashMap<K, V> {
-    let mut map = HashMap::new();
-    for item in data {
-        for (key, value) in emit(item) {
-            map.entry(key).or_insert_with(Vec::new).push(value);
+        let num_irrelevant_mines = num_known_mines - relevant_mines.len();
+        let board_info = BoardInfo {
+            total_cells: self.total_cells()
+                - (if everything_mode {
+                    0
+                } else {
+                    clear_cells.len() + num_irrelevant_mines
+                }),
+            total_mines: total_mines
+                - if everything_mode {
+                    0
+                } else {
+                    num_irrelevant_mines
+                },
+        };
+
+        rules.extend(rule(relevant_mines.len(), relevant_mines));
+        if everything_mode {
+            rules.extend(rule(0, zero_cells.difference(&clear_cells).copied()));
+            rules.extend(rule(0, clear_cells));
         }
-    }
-    map.into_iter()
-        .map(|(key, values)| (key, reduce(values)))
-        .collect()
-}
 
-pub struct GeneratorAdaptor<G: Generator<Yield = T, Return = ()> + Unpin, T> {
-    inner: G,
-}
-impl<G: Generator<Yield = T, Return = ()> + Unpin, T> GeneratorAdaptor<G, T> {
-    pub fn new(inner: G) -> Self {
-        Self {
-            inner,
-        }
-    }
-}
-impl<G: Generator<Yield = T, Return = ()> + Unpin, T> Iterator
-    for GeneratorAdaptor<G, T>
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match Pin::new(&mut self.inner).resume(()) {
-            GeneratorState::Yielded(value) => Some(value),
-            GeneratorState::Complete(()) => None,
-        }
+        (rules, board_info)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FrozenSet<T: Hash + Eq>(HashSet<T>);
-impl<T: Hash + Eq> FrozenSet<T> {
-    pub fn new() -> Self {
-        Self(HashSet::new())
-    }
-
-    pub fn into_item(self) -> T {
-        assert_eq!(self.len(), 1);
-        self.into_iter().next().unwrap()
-    }
-}
-impl<T: Hash + Eq> Deref for FrozenSet<T> {
-    type Target = HashSet<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl<T: Hash + Eq, U> From<U> for FrozenSet<T>
-where
-    HashSet<T>: From<U>,
-{
-    fn from(set: U) -> Self {
-        Self(set.into())
-    }
-}
-impl<T: Hash + Eq, U> FromIterator<U> for FrozenSet<T>
-where
-    HashSet<T>: FromIterator<U>,
-{
-    fn from_iter<I: IntoIterator<Item = U>>(iter: I) -> Self {
-        Self(HashSet::from_iter(iter))
-    }
-}
-impl<T: Hash + Eq> Hash for FrozenSet<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut hash = 0;
-        for item in self.iter() {
-            let mut hasher = DefaultHasher::new();
-            item.hash(&mut hasher);
-            hash ^= hasher.finish();
-        }
-        state.write_u64(hash);
-    }
-}
-impl<'a, T: Hash + Eq + Clone> Sub<&'a FrozenSet<T>> for &'a FrozenSet<T> {
-    type Output = FrozenSet<T>;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        FrozenSet(self.0.difference(&rhs.0).cloned().collect())
-    }
-}
-impl<T: Hash + Eq> IntoIterator for FrozenSet<T> {
-    type IntoIter = <HashSet<T> as IntoIterator>::IntoIter;
-    type Item = T;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FrozenMap<K: Hash + Eq, V>(HashMap<K, V>);
-impl<K: Hash + Eq, V> FrozenMap<K, V> {
-    pub fn into_inner(self) -> HashMap<K, V> {
-        self.0
-    }
-}
-impl<K: Hash + Eq, V> Deref for FrozenMap<K, V> {
-    type Target = HashMap<K, V>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-impl<K: Hash + Eq, V, U> From<U> for FrozenMap<K, V>
-where
-    HashMap<K, V>: From<U>,
-{
-    fn from(map: U) -> Self {
-        Self(map.into())
-    }
-}
-impl<K: Hash + Eq, V, U> FromIterator<U> for FrozenMap<K, V>
-where
-    HashMap<K, V>: FromIterator<U>,
-{
-    fn from_iter<I: IntoIterator<Item = U>>(iter: I) -> Self {
-        Self(HashMap::from_iter(iter))
-    }
-}
-impl<K: Hash + Eq, V: Hash> Hash for FrozenMap<K, V> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut hash = 0;
-        for (key, value) in self.iter() {
-            let mut hasher = DefaultHasher::new();
-            key.hash(&mut hasher);
-            value.hash(&mut hasher);
-            hash ^= hasher.finish();
-        }
-        state.write_u64(hash);
-    }
+/// See [`Board::new`] and [`Board::generate_rules`]. Turns an ASCII-art board
+/// into a list of rules and board info.
+pub fn read_board(
+    encoded: &str,
+    total_mines: usize,
+    everything_mode: bool,
+) -> Result<(Vec<Rule<(usize, usize)>>, BoardInfo), String> {
+    let board = Board::new(encoded)?;
+    Ok(board.generate_rules(total_mines, everything_mode))
 }
