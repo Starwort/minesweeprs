@@ -4,7 +4,8 @@ use std::cmp::{min, Ordering};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::iter::{empty, once};
+use std::iter::{empty, once, Once, Rev};
+use std::ops::RangeInclusive;
 use std::rc::Rc;
 
 use either::Either;
@@ -182,6 +183,7 @@ impl<T: Cell> InternalRule<T> {
                         "count >= 1, remaining_size >= count, so",
                         " cells must not be empty",
                     ));
+                    // TODO: remove this generator
                     Box::new(GeneratorAdaptor::new(move || {
                         for multiplicity in (0..=min(count, cell.len())).rev() {
                             for i in permute(
@@ -196,18 +198,6 @@ impl<T: Cell> InternalRule<T> {
                             }
                         }
                     }))
-                    // Box::new((0..min(count, cell.len())).rev().flat_map(
-                    //     move |multiplicity| {
-                    //         permute(
-                    //             count - multiplicity,
-                    //             cells,
-                    //             permu
-                    //                 .union(&[(Rc::clone(&cell),
-                    // multiplicity)].into())
-                    // .cloned()                 .collect(),
-                    //         )
-                    //     },
-                    // ))
                 } else {
                     Box::new(empty())
                 }
@@ -1227,23 +1217,38 @@ fn cell_probabilities<'a, T: Cell + 'a>(
     mine_prevalence: Either<BoardInfo, f64>,
     all_cells: Vec<Rc<FrozenSet<Rc<T>>>>,
 ) -> Result<impl Iterator<Item = CollapseResult<T>> + 'a, Error> {
+    struct Iter<
+        T: Cell,
+        I: Iterator<Item = CollapseResult<T>>,
+        J: Iterator<Item = CollapseResult<T>>,
+    > {
+        inner: Either<I, J>,
+    }
+    impl<
+            T: Cell,
+            I: Iterator<Item = CollapseResult<T>>,
+            J: Iterator<Item = CollapseResult<T>>,
+        > Iterator for Iter<T, I, J>
+    {
+        type Item = CollapseResult<T>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match &mut self.inner {
+                Either::Left(iter) => iter.next(),
+                Either::Right(iter) => iter.next(),
+            }
+        }
+    }
     Ok(
         weight_subtallies(tallies, mine_prevalence, all_cells)?.flat_map(|tally| {
-            GeneratorAdaptor::new(move || {
-                match tally {
+            Iter {
+                inner: match tally {
                     Either::Left(tally) => {
-                        let collapsed = tally.borrow_mut().collapse();
-                        for i in collapsed {
-                            yield i;
-                        }
+                        Either::Left(tally.borrow_mut().collapse().into_iter())
                     },
-                    Either::Right(tally) => {
-                        for i in tally.collapse() {
-                            yield i;
-                        }
-                    },
-                }
-            })
+                    Either::Right(tally) => Either::Right(tally.collapse()),
+                },
+            }
         }),
     )
 }
@@ -1651,26 +1656,57 @@ impl FixedProbTally {
     }
 }
 
+type ExpandResult<T> = (Rc<T>, f64);
+
 fn expand_cells<T: Cell>(
     cell_probs: impl Iterator<Item = CollapseResult<T>>,
     other_tag: Rc<T>,
 ) -> impl Iterator<Item = (Rc<T>, f64)> {
-    GeneratorAdaptor::new(move || {
-        for (super_cell, p) in cell_probs {
-            match super_cell {
-                Either::Left(cells) => {
-                    let my_cells = (*cells).clone();
-                    for cell in my_cells.into_iter() {
-                        yield (cell, p);
-                    }
-                },
-                Either::Right(uncharted) => {
-                    // Skip the "other" cell if there aren't any
-                    if uncharted.len() != 0 {
-                        yield (Rc::clone(&other_tag), p / (uncharted.len() as f64));
-                    }
-                },
+    struct Iter<T: Hash + Eq, I: Iterator<Item = CollapseResult<T>>> {
+        cell_probs: I,
+        inner: Either<
+            <HashSet<Rc<T>> as IntoIterator>::IntoIter,
+            <Option<(Rc<T>, f64)> as IntoIterator>::IntoIter,
+        >,
+        p: f64,
+        other_tag: Rc<T>,
+    }
+    impl<T: Hash + Eq, I: Iterator<Item = CollapseResult<T>>> Iterator for Iter<T, I> {
+        type Item = ExpandResult<T>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match self.inner {
+                Either::Left(ref mut inner) => inner.next().map(|t| (t, self.p)),
+                Either::Right(ref mut inner) => inner.next(),
             }
+            .or_else(|| {
+                let (super_cell, p) = self.cell_probs.next()?;
+                self.p = p;
+                self.inner = match super_cell {
+                    Either::Left(cells) => Either::Left((*cells).clone().into_iter()),
+                    Either::Right(uncharted) => {
+                        Either::Right(
+                            // Skip the "other" cell if there aren't any
+                            if uncharted.len() != 0 {
+                                Some((
+                                    Rc::clone(&self.other_tag),
+                                    self.p / (uncharted.len() as f64),
+                                ))
+                            } else {
+                                None
+                            }
+                            .into_iter(),
+                        )
+                    },
+                };
+                self.next()
+            })
         }
-    })
+    }
+    Iter {
+        cell_probs,
+        inner: Either::Right(None.into_iter()),
+        p: 0.0,
+        other_tag,
+    }
 }
