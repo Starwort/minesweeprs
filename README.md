@@ -1,6 +1,6 @@
 # Minesweeprs
 
-This project is a port of a minesweeper solver algorithm by @mrgris. It is written in Rust and aims to improve performance compared to the original, and allow it to run in-browser via WebAssembly.
+This project is a port of a minesweeper solver algorithm by @mrgriscom. It is written in Rust and aims to improve performance compared to the original, and allow it to run in-browser via WebAssembly.
 
 ## Solving
 
