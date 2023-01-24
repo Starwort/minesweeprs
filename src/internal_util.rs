@@ -65,39 +65,7 @@ where
         Self(value.into())
     }
 }
-// struct CustomRef<T> {
-//     inner: ManuallyDrop<Ref<'static, ()>>,
-//     _marker: PhantomData<T>,
-// }
-// impl<T> From<Ref<'_, T>> for CustomRef<T> {
-//     fn from(inner: Ref<'_, T>) -> Self {
-//         Self {
-//             // SAFETY: CustomRef can only be obtained through Shared's Deref,
-//             // which guarantees that the backing data will be alive at least
-//             // as long as this CustomRef, and CustomRef cannot be cloned,
-//             // so the reference can't escape the lifetime.
-//             inner: ManuallyDrop::new(unsafe { transmute(inner) }),
-//             _marker: PhantomData,
-//         }
-//     }
-// }
-// impl<T> Deref for CustomRef<T> {
-//     type Target = T;
 
-//     fn deref(&self) -> &Self::Target {
-//         // SAFETY: This is transmuting back the original type, which was
-// erased         // in From. ManuallyDrop is guaranteed to have the same layout
-// as the         // type it wraps, so this is safe.
-//         unsafe { transmute(transmute::<&_, &Ref<'_, T>>(&self.inner).deref())
-// }     }
-// }
-// impl<T> Drop for CustomRef<T> {
-//     fn drop(&mut self) {
-//         // SAFETY: This is a destructor; the data will never be used again
-//         let r#ref = unsafe { ManuallyDrop::take(&mut self.inner) };
-//         drop(unsafe { transmute::<_, Ref<'_, T>>(self.inner) });
-//     }
-// }
 pub fn fact_div(a: usize, b: usize) -> f64 {
     if a >= b {
         ((b + 1)..=a).map(|i| i as f64).product::<f64>()
