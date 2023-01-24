@@ -105,6 +105,8 @@ impl Board {
         adjacent
     }
 
+    #[doc(hidden)]
+    #[deprecated(note = "Not used internally, scheduled for removal")]
     pub fn cell_name(&self, (row, col): (usize, usize)) -> String {
         format!(
             "{0:01$}-{2:03$}",
@@ -179,7 +181,7 @@ impl Board {
                 let neighbours = self.adjacent(cell_id);
                 if adj > 0 {
                     if everything_mode
-                        || neighbours.iter().any(|&(_, c)| c == BoardCell::Mine)
+                        || neighbours.iter().any(|&(_, c)| c == BoardCell::Unknown)
                     {
                         rules.extend(rule(
                             adj,
