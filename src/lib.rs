@@ -1,4 +1,4 @@
-#![feature(trait_alias, generators, generator_trait)]
+#![feature(generators, generator_trait)]
 #![allow(clippy::too_many_lines)]
 use std::cmp::{min, Ordering};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
@@ -25,7 +25,9 @@ use itertools::Itertools;
 mod internal_util;
 pub mod util;
 
-pub trait Cell = Hash + Eq + Clone + Debug;
+pub trait Cell: Hash + Eq + Clone + Debug {}
+impl<T: Hash + Eq + Clone + Debug> Cell for T {
+}
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct BoardInfo {
@@ -349,8 +351,8 @@ impl<T: Cell> CellRulesMap<T> {
                 .map
                 .entry(Rc::clone(super_cell))
                 .or_insert_with(|| Shared::new(HashSet::new())))
-                .borrow_mut()
-                .insert(Rc::clone(&rule));
+            .borrow_mut()
+            .insert(Rc::clone(&rule));
         }
         self.rules.insert(rule);
     }
