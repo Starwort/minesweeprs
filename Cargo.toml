@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "minesweeprs"
-version = "0.1.0"
+version = "0.1.1"
 
 authors = ["starwort", "mrgriscom <mrgriscom@gmail.com>"]
 description = "Probabalistic minesweeper solver, based on https://mrgris.com/projects/minesweepr/"

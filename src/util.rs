@@ -65,7 +65,7 @@ impl Board {
                         '*' => BoardCell::Mine,
                         'x' => BoardCell::Unknown,
                         '.' => BoardCell::Empty(0),
-                        n @ '1'..='8' => {
+                        n @ '0'..='8' => {
                             BoardCell::Empty(
                                 n.to_digit(10).expect(
                                     "n has been validated to be a decimal digit",
