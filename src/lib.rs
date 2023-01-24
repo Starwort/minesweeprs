@@ -1,4 +1,4 @@
-#![feature(trait_alias, generators, generator_trait, impl_trait_projections)]
+#![feature(trait_alias, generators, generator_trait)]
 #![allow(clippy::too_many_lines)]
 use std::cmp::{min, Ordering};
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
@@ -925,7 +925,7 @@ impl<'a, T: Cell> EnumerationState<'a, T> {
         self.free.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = Self> {
+    pub fn iter(&self) -> impl Iterator<Item = EnumerationState<'a, T>> {
         let state = self.clone();
         let rule = Rc::clone(peek(state.free.keys()));
         let permus = self.free[&rule].borrow().clone();
