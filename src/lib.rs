@@ -76,7 +76,7 @@ pub struct Rule<T: Cell> {
     cells: FrozenSet<Rc<T>>,
 }
 impl<T: Cell> Rule<T> {
-    pub fn new(num_mines: usize, cells: impl Iterator<Item = T>) -> Self {
+    pub fn new(num_mines: usize, cells: impl IntoIterator<Item = T>) -> Self {
         Self {
             num_mines,
             cells: cells.into_iter().map(Rc::new).collect(),
