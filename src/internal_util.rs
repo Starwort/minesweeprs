@@ -161,6 +161,11 @@ impl<T: Hash + Eq> FrozenSet<T> {
         self.into_iter().next().unwrap()
     }
 }
+impl<T: Hash + Eq> Default for FrozenSet<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<T: Hash + Eq> Deref for FrozenSet<T> {
     type Target = HashSet<T>;
 

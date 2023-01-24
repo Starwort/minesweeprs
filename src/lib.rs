@@ -267,7 +267,7 @@ fn condense_supercells<T: Cell>(
     );
     Ok((
         rules
-            .into_iter()
+            .iter()
             .map(|rule| rule.condensed(&rule_supercells_map))
             .collect::<Result<Vec<_>, Error>>()?,
         rules_supercell_map.into_values().collect(),
@@ -345,7 +345,7 @@ impl<T: Cell> CellRulesMap<T> {
 
     pub fn add_rule(&mut self, rule: Rc<InternalRule<T>>) {
         for super_cell in rule.super_cells.iter() {
-            (&*self
+            (*self
                 .map
                 .entry(Rc::clone(super_cell))
                 .or_insert_with(|| Shared::new(HashSet::new())))
@@ -468,7 +468,7 @@ impl<T: Cell> RuleReducer<T> {
     }
 
     pub fn update_reduceables(&mut self, rule: &Rc<InternalRule<T>>) {
-        for overlapping in self.cell_rules_map.overlapping_rules(&rule) {
+        for overlapping in self.cell_rules_map.overlapping_rules(rule) {
             if overlapping.is_subule_of(rule) {
                 // This path is followed if the rules are equivalent
                 self.add_reduceable(Reduceable::new(Rc::clone(rule), overlapping));
@@ -1036,12 +1036,12 @@ impl<T: Cell> FrontTally<T> {
 
     pub fn tally(&mut self, front: PermutedRuleset<T>) -> Result<(), Error> {
         for config in front.enumerate() {
-            (&*self
+            (self
                 .subtallies
                 .entry(config.k())
                 .or_insert_with(|| Shared::new(FrontSubtally::new())))
-                .borrow_mut()
-                .add(&config);
+            .borrow_mut()
+            .add(&config);
         }
 
         if self.subtallies.is_empty() {
@@ -1153,7 +1153,7 @@ impl<T: Cell> FrontTally<T> {
                 num_mines,
                 Shared::new(FrontSubtally::from_data(
                     k,
-                    [(Either::Right(meta_cell.clone()), num_mines as f64)].into_iter(),
+                    [(Either::Right(meta_cell), num_mines as f64)].into_iter(),
                 )),
             )
         }))

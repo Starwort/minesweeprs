@@ -74,8 +74,7 @@ impl Board {
                         },
                         _ => {
                             return Err(format!(
-                                "Invalid character '{}' at ({}, {})",
-                                c, row, col
+                                "Invalid character '{c}' at ({row}, {col})"
                             ));
                         },
                     },
