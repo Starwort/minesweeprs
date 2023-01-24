@@ -1,0 +1,12 @@
+"minesweepr" -- minesweeper solving algorithm and web-based game client
+
+© 2011 Drew Roos <mrgriscom@gmail.com>
+
+original code available at: https://github.com/mrgriscom/minesweepr
+see more of my projects at: http://mrgris.com
+
+---
+
+Rust port "minesweeprs" © 2023 Starwort
+
+Original port code available at https://github.com/starwort/minesweeprs
