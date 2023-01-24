@@ -5,7 +5,6 @@ use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::iter::{empty, once};
-
 use std::rc::Rc;
 
 use either::Either;
