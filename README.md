@@ -34,32 +34,32 @@ use std::rc::Rc;
 use minesweeprs::{solve, BoardInfo, Rule};
 let output = solve(
     &[
-        Rule::new(1, ["A", "B"]),
-        Rule::new(2, ["A", "B", "C"]),
-        Rule::new(3, ["B", "C", "D"]),
-        Rule::new(2, ["C", "D", "E"]),
-        Rule::new(2, ["D", "E", "F", "G", "H"]),
-        Rule::new(1, ["G", "H", "I"]),
-        Rule::new(1, ["H", "I"]),
+        Rule::new(1, ['A', 'B']),
+        Rule::new(2, ['A', 'B', 'C']),
+        Rule::new(3, ['B', 'C', 'D']),
+        Rule::new(2, ['C', 'D', 'E']),
+        Rule::new(2, ['D', 'E', 'F', 'G', 'H']),
+        Rule::new(1, ['G', 'H', 'I']),
+        Rule::new(1, ['H', 'I']),
     ],
     BoardInfo { total_cells: 85, total_mines: 10 },
-    ".",
+    '.',
 );
 // The board is solvable, so the below should hold:
 assert_eq!(
     output,
     Ok(
         [
-            ("A", 0.0),
-            ("B", 1.0),
-            ("C", 1.0),
-            ("D", 1.0),
-            ("E", 0.0),
-            ("F", 0.07792207792207793),
-            ("G", 0.0),
-            ("H", 0.9220779220779222),
-            ("I", 0.07792207792207793),
-            (".", 0.07792207792207792),
+            ('A', 0.0),
+            ('B', 1.0),
+            ('C', 1.0),
+            ('D', 1.0),
+            ('E', 0.0),
+            ('F', 0.07792207792207793),
+            ('G', 0.0),
+            ('H', 0.9220779220779222),
+            ('I', 0.07792207792207793),
+            ('.', 0.07792207792207792),
         ].into(),
     )
 );
