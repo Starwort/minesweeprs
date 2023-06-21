@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "minesweeprs"
-version = "0.3.0"
+version = "0.3.1"
 
 authors = ["starwort", "mrgriscom <mrgriscom@gmail.com>"]
 description = "Probabalistic minesweeper solver, based on https://mrgris.com/projects/minesweepr/"
@@ -16,4 +16,5 @@ either = "1.8.1"
 frozenset = "0.2"
 itertools = "0.10.5"
 pretty_assertions = "1.3.0"
+serde = {version = "1.0.164", optional = true}
 typed-arena = "2.0.2"

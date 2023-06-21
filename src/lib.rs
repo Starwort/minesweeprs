@@ -93,15 +93,11 @@ use either::Either;
 use frozenset::FrozenSet;
 use itertools::Itertools;
 use solve::{
-    Cell,
     FixedProbTally,
     FrontTally,
     InconsistencyError,
     InternalRule,
-    MineCount,
-    MinePrevalence,
     PermutedRuleset,
-    Rule,
     RuleReducer,
     UnchartedCell,
 };
@@ -110,6 +106,8 @@ use internal_util::{fact_div, map_reduce};
 mod solve;
 mod internal_util;
 pub mod util;
+
+pub use solve::{MinePrevalence, Rule, Cell, MineCount};
 
 /// Solve a minesweeper board.
 ///

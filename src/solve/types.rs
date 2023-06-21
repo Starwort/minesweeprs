@@ -10,13 +10,14 @@ use itertools::Itertools;
 
 use crate::internal_util::{choose, graph_traverse, map_reduce, peek, peek_set, pop};
 
-/// The state of the game is logically inconsistent.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InconsistencyError(pub &'static str);
 
 /// Represents the board geometry for traditional minesweeper, where the board
 /// has fixed dimensions and a fixed total number of mines.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MineCount {
     /// Total number of cells on the board; all cells contained in rules + all
     /// 'uncharted' (unknown) cells.
@@ -31,11 +32,14 @@ pub struct MineCount {
 pub trait Cell: Clone + Hash + Eq {}
 impl<T: Clone + Hash + Eq> Cell for T {
 }
+
 /// Either information about the board, or the probability of any unknown cell
 /// being a mine (if the total number of mines is not known).
 ///
-/// You shouldn't need to construct this type directly - use [`MineCount`] or
-/// [`f64`]
+/// You shouldn't need to construct this type directly - use the [`Into`]
+/// implementation of [`MineCount`] or [`f64`]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MinePrevalence(pub Either<MineCount, f64>);
 impl From<MineCount> for MinePrevalence {
     fn from(count: MineCount) -> Self {
@@ -48,12 +52,13 @@ impl From<f64> for MinePrevalence {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 /// A basic representation of an axiom from a minesweeper game; N mines
 /// contained within a set of M cells.
 ///
 /// Only used during the very early stages of the algorithm; quickly converted
 /// into an [`InternalRule`]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rule<T: Cell> {
     /// How many mines
     pub(crate) num_mines: usize,
@@ -69,7 +74,7 @@ impl<T: Cell> Rule<T> {
         }
     }
 
-    pub fn condensed(
+    pub(crate) fn condensed(
         &self,
         rule_supercells_map: &HashMap<Self, FrozenSet<FrozenSet<T>>>,
     ) -> Result<InternalRule<T>, InconsistencyError> {
@@ -81,11 +86,11 @@ impl<T: Cell> Rule<T> {
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 /// Analogue of [`Rule`], but containing 'super-cells' (sets of 'ordinary' cells
 /// which only ever appear together).
 ///
 /// This is the main representation of a rule used by the algorithm.
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct InternalRule<T: Cell> {
     #[cfg(test)]
     pub num_mines: usize,
@@ -256,8 +261,8 @@ impl<T: Cell> InternalRule<T> {
     }
 }
 
-#[derive(Debug, Clone)]
 /// Tabulation of per-cell mine frequencies
+#[derive(Debug, Clone)]
 pub struct FrontTally<T: Cell> {
     /// Number of mines in configuration -> subtally of configurations with that
     /// many mines
@@ -438,8 +443,8 @@ impl<T: Cell> Default for FrontTally<T> {
     }
 }
 
-#[derive(Debug, Clone)]
 /// Sub-tabulation of per-cell mine frequencies
+#[derive(Debug, Clone)]
 pub struct FrontSubtally<T: Cell> {
     /// 'weight' of this sub-tally among the others in the [`FrontTally`].
     /// Initially will be a raw count of the configurations in this sub-tally,
@@ -524,9 +529,9 @@ impl<T: Cell> Default for FrontSubtally<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// A meta-cell object that represents all the 'other' cells on the board, that
 /// aren't explicitly mentioned in a rule. See [`expand_cells()`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnchartedCell {
     size: usize,
 }
@@ -550,10 +555,6 @@ impl UnchartedCell {
     pub fn len(self) -> usize {
         self.size
     }
-
-    pub fn is_empty(self) -> bool {
-        self.len() == 0
-    }
 }
 
 /// A meta-tally to represent when all 'other' cells are uncounted and assumed
@@ -575,10 +576,10 @@ impl Hash for FixedProbTally {
     }
 }
 
-#[derive(Debug, Clone)]
 /// Manager object that performs the 'logical deduction' phase of the solver;
 /// maintains a set of active rules, tracks which rules overlap with other
 /// rules, and iteratively reduces them until no further reductions are possible
+#[derive(Debug, Clone)]
 pub struct RuleReducer<T: Cell> {
     active_rules: HashSet<InternalRule<T>>,
     cell_rules_map: CellRulesMap<T>,
