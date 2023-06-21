@@ -40,7 +40,10 @@ impl<T: Clone + Hash + Eq> Cell for T {
 /// implementation of [`MineCount`] or [`f64`]
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct MinePrevalence(pub Either<MineCount, f64>);
+pub struct MinePrevalence(
+    #[cfg_attr(feature = "serde", serde(with = "either::serde_untagged"))]
+    pub  Either<MineCount, f64>,
+);
 impl From<MineCount> for MinePrevalence {
     fn from(count: MineCount) -> Self {
         Self(Either::Left(count))
